@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from motor.motor_asyncio import AsyncIOMotorClient
@@ -7,6 +7,15 @@ from pymongo import ASCENDING, DESCENDING
 
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
+
+
+def has_unlimited_access(user: dict[str, Any] | None) -> bool:
+    if not user:
+        return False
+    if user.get("is_unlimited"):
+        return True
+    until = user.get("subscription_until")
+    return bool(until and until > utcnow())
 
 
 class Database:
@@ -48,6 +57,34 @@ class Database:
     async def save_attempt(self, data: dict[str, Any]) -> None:
         data.setdefault("created_at", utcnow())
         await self.db.attempts.insert_one(data)
+
+    async def count_attempts(self, telegram_id: int) -> int:
+        return await self.db.attempts.count_documents({"telegram_id": telegram_id})
+
+    async def grant_extra_attempts(self, telegram_id: int, count: int) -> None:
+        await self.db.users.update_one(
+            {"telegram_id": telegram_id},
+            {
+                "$inc": {"extra_attempts": count},
+                "$set": {"updated_at": utcnow()},
+                "$setOnInsert": {"created_at": utcnow()},
+            },
+            upsert=True,
+        )
+
+    async def consume_extra_attempt(self, telegram_id: int) -> bool:
+        result = await self.db.users.find_one_and_update(
+            {"telegram_id": telegram_id, "extra_attempts": {"$gt": 0}},
+            {"$inc": {"extra_attempts": -1}, "$set": {"updated_at": utcnow()}},
+        )
+        return result is not None
+
+    async def extend_subscription(self, telegram_id: int, days: int) -> None:
+        user = await self.get_user(telegram_id)
+        now = utcnow()
+        current_until = user.get("subscription_until") if user else None
+        base = current_until if current_until and current_until > now else now
+        await self.upsert_user(telegram_id, subscription_until=base + timedelta(days=days))
 
     async def get_stats(self, telegram_id: int) -> dict[str, Any]:
         user = await self.get_user(telegram_id)

@@ -8,8 +8,8 @@ from aiogram.types import CallbackQuery, Message
 from app.ai.claude import ClaudeService
 from app.ai.stt import SpeechToTextService
 from app.config import settings
-from app.database import Database, utcnow
-from app.keyboards import main_menu
+from app.database import Database, has_unlimited_access, utcnow
+from app.keyboards import main_menu, paywall_menu
 
 router = Router()
 claude = ClaudeService()
@@ -41,6 +41,18 @@ def format_evaluation(e) -> str:
 
 
 async def run_topic(message: Message, db: Database, telegram_id: int):
+    user = await db.get_user(telegram_id)
+    if not has_unlimited_access(user):
+        used = await db.count_attempts(telegram_id)
+        if used >= settings.free_attempts_limit:
+            if not await db.consume_extra_attempt(telegram_id):
+                await message.answer(
+                    f"🔒 You've used all {settings.free_attempts_limit} free practice attempts.\n\n"
+                    "Get more practice with Telegram Stars:",
+                    reply_markup=paywall_menu(),
+                )
+                return
+
     recent = await db.db.attempts.find(
         {"telegram_id": telegram_id},
         {"topic": 1, "_id": 0},
@@ -137,8 +149,9 @@ async def voice_answer(message: Message, db: Database):
         current_question=None,
     )
 
+    user = await db.get_user(message.from_user.id)
     await message.answer(
         f"<b>Your transcript</b>\n{transcript}\n\n"
         + format_evaluation(evaluation),
-        reply_markup=main_menu(),
+        reply_markup=main_menu(unlimited=has_unlimited_access(user)),
     )

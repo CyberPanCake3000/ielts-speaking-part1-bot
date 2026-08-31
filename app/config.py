@@ -21,6 +21,11 @@ class Settings(BaseSettings):
     default_timezone: str = Field(default="UTC", alias="DEFAULT_TIMEZONE")
     max_voice_duration_seconds: int = Field(default=120, alias="MAX_VOICE_DURATION_SECONDS")
 
+    free_attempts_limit: int = Field(default=3, alias="FREE_ATTEMPTS_LIMIT")
+    stars_price_single_question: int = Field(default=50, alias="STARS_PRICE_SINGLE_QUESTION")
+    stars_price_weekly: int = Field(default=150, alias="STARS_PRICE_WEEKLY")
+    stars_price_unlimited: int = Field(default=1000, alias="STARS_PRICE_UNLIMITED")
+
     log_level: str = Field(default="INFO", alias="LOG_LEVEL")
     app_host: str = Field(default="0.0.0.0", alias="APP_HOST")
     app_port: int = Field(default=8080, alias="APP_PORT")

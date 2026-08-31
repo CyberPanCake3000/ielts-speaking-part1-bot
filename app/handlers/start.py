@@ -2,7 +2,7 @@ from aiogram import Router, F
 from aiogram.filters import Command, CommandStart
 from aiogram.types import CallbackQuery, Message
 
-from app.database import Database
+from app.database import Database, has_unlimited_access
 from app.keyboards import main_menu, reminder_times, reminder_toggle
 
 router = Router()
@@ -33,7 +33,7 @@ async def start(message: Message, db: Database):
     await message.answer(
         "Welcome back! 👋\n\n"
         "Ready for a quick IELTS Speaking practice?",
-        reply_markup=main_menu(),
+        reply_markup=main_menu(unlimited=has_unlimited_access(user)),
     )
 
 
@@ -45,10 +45,11 @@ async def set_time(callback: CallbackQuery, db: Database):
         reminder_enabled=True,
         reminder_time=time,
     )
+    user = await db.get_user(callback.from_user.id)
     await callback.message.edit_text(
         f"Perfect! I'll remind you every day at {time}. ⏰\n\n"
         "You can change this any time with /start.",
-        reply_markup=main_menu(),
+        reply_markup=main_menu(unlimited=has_unlimited_access(user)),
     )
     await callback.answer()
 
