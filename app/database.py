@@ -15,7 +15,11 @@ def has_unlimited_access(user: dict[str, Any] | None) -> bool:
     if user.get("is_unlimited"):
         return True
     until = user.get("subscription_until")
-    return bool(until and until > utcnow())
+    if not until:
+        return False
+    if until.tzinfo is None:
+        until = until.replace(tzinfo=timezone.utc)
+    return until > utcnow()
 
 
 class Database:
@@ -83,6 +87,8 @@ class Database:
         user = await self.get_user(telegram_id)
         now = utcnow()
         current_until = user.get("subscription_until") if user else None
+        if current_until and current_until.tzinfo is None:
+            current_until = current_until.replace(tzinfo=timezone.utc)
         base = current_until if current_until and current_until > now else now
         await self.upsert_user(telegram_id, subscription_until=base + timedelta(days=days))
 
